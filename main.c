@@ -2,6 +2,8 @@
 
 #include "header.h"
 
+#define NAME_AND_VERSION  "Link/02 v1.5"
+
 char *getHex(char *line, word *value) {
   *value = 0;
   while ((*line >= '0' && *line <= '9') || (*line >= 'a' && *line <= 'f') ||
@@ -124,7 +126,7 @@ int loadFile(char *filename) {
   word low;
   char *line;
   // grw - suppress linking messages when creating sym file
-  if (!createSym && (libScan == 0)) printf("Linking: %s\n", filename);
+  if (!quiet && !createSym && (libScan == 0)) printf("Linking: %s\n", filename);
   inProc = 0;
   offset = 0;
   file = fopen(filename, "r");
@@ -695,12 +697,12 @@ int main(int argc, char **argv) {
   int i;
   char *pchar;
   int resolved;
-  printf("Link/02 v1.4\n");
   lowest = 0xffff;
   highest = 0x0000;
   numObjects = 0;
   startAddress = 0xffff;
   showSymbols = 0;
+  quiet = 0;
   createSym = 0;
   numSymbols = 0;
   numReferences = 0;
@@ -722,6 +724,8 @@ int main(int argc, char **argv) {
       outMode = BM_INTEL;
     else if (strcmp(argv[i], "-h") == 0)
       outMode = BM_RCS;
+    else if (strcmp(argv[i], "-q") == 0)
+      quiet = -1;
     else if (strcmp(argv[i], "-s") == 0)
       showSymbols = -1;
     else if (strcmp(argv[i], "-be") == 0)
@@ -755,6 +759,7 @@ int main(int argc, char **argv) {
       i++;
       addLibrary(argv[i]);
     } else if (strcmp(argv[i], "-v") == 0) {
+      printf("%s\n", NAME_AND_VERSION);
       printf("by Michael H. Riley\n");
       printf("with contributions by:\n");
       printf("  Tony Hefner\n");
@@ -768,6 +773,11 @@ int main(int argc, char **argv) {
       addObject(argv[i]);
     }
   }
+
+  if (!quiet) {
+    printf("%s\n", NAME_AND_VERSION);
+  }
+
   if (numObjects == 0) {
     printf("No object files specified\n");
     exit(1);
@@ -829,7 +839,9 @@ int main(int argc, char **argv) {
     printf("Errors during link.  Aborting output\n");
     exit(1);
   } else {
-    printf("Writing: %s\n", outName);
+    if (!quiet) {
+      printf("Writing: %s\n", outName);
+    }
     switch (outMode) {
       case BM_BINARY:
         outputBinary();
@@ -845,10 +857,13 @@ int main(int argc, char **argv) {
         break;
     }
   }
-  printf("Lowest address : %04x\n", lowest);
-  printf("Highest address: %04x\n", highest);
-  printf("Public symbols : %d\n", numSymbols);
-  if (startAddress != 0xffff) printf("Start address  : %04x\n", startAddress);
+
+  if (!quiet) {
+    printf("Lowest address : %04x\n", lowest);
+    printf("Highest address: %04x\n", highest);
+    printf("Public symbols : %d\n", numSymbols);
+    if (startAddress != 0xffff) printf("Start address  : %04x\n", startAddress);
+  }
 
   if (showSymbols) {
     sortSymbols();
@@ -866,6 +881,6 @@ int main(int argc, char **argv) {
     } else
       printf("Error opening symbol map file %s.\n", symName);
   }
-  printf("\n");
+
   return 0;
 }

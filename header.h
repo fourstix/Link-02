@@ -47,6 +47,7 @@ LINK char **symbols;
 LINK word *values;
 LINK int numSymbols;
 LINK int showSymbols;
+LINK int quiet;
 LINK char **references;
 LINK word *addresses;
 LINK byte *lows;

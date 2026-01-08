@@ -7,6 +7,7 @@ link @controlfile
 -i            - Output Intel hex
 -I path       - Add path to search list for object files
 -h            - Output RCS hex
+-q            - Show minimal output
 -s            - Show public symbols
 -S            - Create .sym file for public symbols
 -o name       - Specify output filename
