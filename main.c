@@ -2,7 +2,17 @@
 
 #include "header.h"
 
-#define NAME_AND_VERSION  "Link/02 v1.5"
+#define NAME_AND_VERSION  "Link/02 v1.6"
+
+struct tm *localtime_r(const time_t *timer, struct tm *buf)
+{
+  if (buf != NULL)
+  {
+    memcpy(buf, localtime(timer), sizeof(struct tm));
+  }
+
+  return buf;
+}
 
 char *getHex(char *line, word *value) {
   *value = 0;
@@ -125,7 +135,8 @@ int loadFile(char *filename) {
   word lofs;
   word low;
   char *line;
-  // grw - suppress linking messages when creating sym file
+
+  //grw - suppress linking messages when creating sym file
   if (!quiet && !createSym && (libScan == 0)) printf("Linking: %s\n", filename);
   inProc = 0;
   offset = 0;
@@ -141,7 +152,7 @@ int loadFile(char *filename) {
           strcpy(path, libPath[i]);
           if (path[strlen(path) - 1] != '/') strcat(path, "/");
           strcat(path, filename);
-          // grw - changed to open path instead of buffer
+          //grw - changed to open path instead of buffer
           file = fopen(path, "r");
           if (file != NULL) i = numLibPath;
           i++;
@@ -157,7 +168,7 @@ int loadFile(char *filename) {
         strcpy(path, incPath[i]);
         if (path[strlen(path) - 1] != '/') strcat(path, "/");
         strcat(path, filename);
-        // grw - changed to open path instead of buffer
+        //grw - changed to open path instead of buffer
         file = fopen(path, "r");
         if (file != NULL) i = numIncPath;
         i++;
@@ -182,6 +193,31 @@ int loadFile(char *filename) {
       } else {
         address = adjust(address, line);
       }
+    } else if (strncmp(line, ".ver", 4) == 0) {
+      address -= 4;
+      memory[address++] = buildMonth;
+      memory[address++] = buildDay;
+      memory[address++] = (buildYear >> 8) & 0xff;
+      memory[address++] = buildYear & 0xff;
+    } else if (strncmp(line, ".ever", 5) == 0) {
+      address -= 6;
+      memory[address++] = buildMonth | 0x80;
+      memory[address++] = buildDay;
+      memory[address++] = (buildYear >> 8) & 0xff;
+      memory[address++] = buildYear & 0xff;
+      memory[address++] = (buildNumber >> 8) & 0xff;
+      memory[address++] = buildNumber & 0xff;
+    } else if (strncmp(line, ".eever", 6) == 0) {
+      address -= 9;
+      memory[address++] = buildMonth | 0xc0;
+      memory[address++] = buildDay;
+      memory[address++] = (buildYear >> 8) & 0xff;
+      memory[address++] = buildYear & 0xff;
+      memory[address++] = buildHour;
+      memory[address++] = buildMinute;
+      memory[address++] = buildSecond;
+      memory[address++] = (buildNumber >> 8) & 0xff;
+      memory[address++] = buildNumber & 0xff;
     } else if (strncmp(line, ".library ", 9) == 0) {
       line += 9;
       while (*line == ' ') line++;
@@ -337,7 +373,7 @@ int loadFile(char *filename) {
           for (i = 0; i < numReferences; i++)
             if (strcmp(references[i], token) == 0) {
               loadModule = -1;
-              // grw - suppress linking messages when creating sym
+              //grw - suppress linking messages when creating sym
               // file
               if (!createSym) printf("Linking %s from library\n", token);
               i = numReferences;
@@ -347,7 +383,7 @@ int loadFile(char *filename) {
               if (requireAdded[i] == 'N' && strcmp(requires[i], token) == 0) {
                 loadModule = -1;
                 requireAdded[i] = 'Y';
-                // grw - suppress linking messages when creating
+                //grw - suppress linking messages when creating
                 // sym file
                 if (!createSym) printf("Linking %s from library\n", token);
               }
@@ -695,8 +731,13 @@ void sortSymbols() {
 
 int main(int argc, char **argv) {
   int i;
+  time_t tv;
+  struct tm dt;
   char *pchar;
   int resolved;
+  char tmp[1024];
+  char buffer[33];
+  FILE *buildFile;
   lowest = 0xffff;
   highest = 0x0000;
   numObjects = 0;
@@ -711,8 +752,18 @@ int main(int argc, char **argv) {
   addressMode = 'L';
   numLibPath = 0;
   numIncPath = 0;
+  tv = time(NULL);
+  localtime_r(&tv, &dt);
+  buildMonth = dt.tm_mon + 1;
+  buildDay = dt.tm_mday;
+  buildYear = dt.tm_year + 1900;
+  buildHour = dt.tm_hour;
+  buildMinute = dt.tm_min;
+  buildSecond = dt.tm_sec;
+
   strcpy(outName, "");
   outMode = BM_BINARY;
+
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-b") == 0)
       outMode = BM_BINARY;
@@ -766,7 +817,7 @@ int main(int argc, char **argv) {
       printf("  Gaston Williams\n");
       exit(1);
     }
-    // grw - add option for Symbol file
+    //grw - add option for Symbol file
     else if (strcmp(argv[i], "-S") == 0) {
       createSym = -1;
     } else {
@@ -792,9 +843,29 @@ int main(int argc, char **argv) {
     if (outMode == BM_INTEL) strcat(outName, ".intel");
     if (outMode == BM_RCS) strcat(outName, ".hex");
   }
-  // grw - create symbol file name from outName
+
+  strcpy(tmp, outName);
+  pchar = strchr(tmp, '.');
+  if (pchar != NULL) *pchar = 0;
+  strcat(tmp, ".lkb");
+  buildFile = fopen(tmp, "r");
+  if (buildFile == NULL)
+  {
+    buildNumber = 1;
+  }
+  else
+  {
+    fgets(buffer, 32, buildFile);
+    buildNumber = atoi(buffer) + 1;
+    fclose(buildFile);
+  }
+  buildFile = fopen(tmp, "w");
+  fprintf(buildFile, "%d\n", buildNumber);
+  fclose(buildFile);
+
+  //grw - create symbol file name from outName
   if (createSym) {
-    // grw - symName is up to 64 characters including ".sym"
+    //grw - symName is up to 64 characters including ".sym"
     if (strlen(outName) > 60) {
       strncpy(symName, outName, 60);
       symName[60] = 0;

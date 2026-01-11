@@ -14,6 +14,7 @@
 #else
 #include <strings.h>
 #include <unistd.h>
+#include <time.h>
 #define O_BINARY 0
 #define LIBPATH "/usr/local/lib/"
 #endif
@@ -60,17 +61,24 @@ LINK char **libraries;
 LINK int numLibraries;
 LINK int libScan;
 LINK int loadModule;
-LINK char **
-  requires;
+LINK char **requires;
 LINK char *requireAdded;
 LINK int numRequires;
 LINK char **incPath;
 LINK int numIncPath;
 LINK char **libPath;
 LINK int numLibPath;
-// grw - added support for symbol map file
+//grw - added support for symbol map file
 LINK FILE *symFile;
 LINK char symName[64];
 LINK int createSym;
+//arh - add support for Elf/OS header generation
+LINK int buildMonth;
+LINK int buildDay;
+LINK int buildYear;
+LINK int buildHour;
+LINK int buildMinute;
+LINK int buildSecond;
+LINK int buildNumber;
 
 #endif
