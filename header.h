@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <io.h>
@@ -14,7 +15,6 @@
 #else
 #include <strings.h>
 #include <unistd.h>
-#include <time.h>
 #define O_BINARY 0
 #define LIBPATH "/usr/local/lib/"
 #endif
