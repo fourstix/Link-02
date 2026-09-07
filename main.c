@@ -289,6 +289,8 @@ int loadFile(char *filename) {
   //grw - suppress linking messages when creating sym file
   if (!quiet && !createSym && (libScan == 0)) printf("Linking: %s\n", filename);
   inProc = 0;
+  procContent = 0;
+  procSymIdx = -1;
   offset = 0;
   file = findInputFile(filename, libScan != 0);
   if (file == NULL) {
@@ -309,7 +311,26 @@ int loadFile(char *filename) {
       line += 7;
       while (*line == ' ') line++;
       if (inProc) {
+        /* Inside a proc this adjusts the proc's BASE, which only means
+         * "align the current position" while the proc is still empty.
+         * Once bytes have been emitted it silently drags everything
+         * already placed along with it and aligns nothing: a proc at
+         * 002d with 5 bytes emitted, then ".align 32", put those bytes
+         * at 0040 and the label after them at 0045 -- not aligned at
+         * all, and no diagnostic. Refuse it rather than emit a layout
+         * the author plainly did not ask for. */
+        if (procContent) {
+          printf("Error: .align inside a proc is only valid before any "
+                 "content has been emitted -- it moves the proc's base, "
+                 "not the current position\n");
+          fclose(file);
+          return -1;
+        }
         offset = adjust(offset, line);
+        /* The proc's own symbol was recorded at the pre-align base.
+         * Move it with the base, or a call to the proc by name lands
+         * short of its real first byte. */
+        if (procSymIdx >= 0) values[procSymIdx] = offset;
       } else {
         address = adjust(address, line);
       }
@@ -376,10 +397,12 @@ int loadFile(char *filename) {
       line++;
       line = getHex(line, &value);
       address += value;
+      procContent = -1;
     } else if (*line == ':' && loadModule != 0) {
       line++;
       line = getHex(line, &address);
       if (inProc) address += offset;
+      procContent = -1;
       while (*line != 0) {
         while (*line > 0 && *line <= ' ') line++;
         if (*line != 0) {
@@ -579,6 +602,7 @@ int loadFile(char *filename) {
             return -1;
           }
         inProc = -1;
+        procContent = 0;
         offset = address;
         numSymbols++;
         if (numSymbols == 1) {
@@ -591,6 +615,7 @@ int loadFile(char *filename) {
         symbols[numSymbols - 1] = (char *)malloc(strlen(token) + 1);
         strcpy(symbols[numSymbols - 1], token);
         values[numSymbols - 1] = value;
+        procSymIdx = numSymbols - 1;
         for (i = 0; i < numRequires; i++)
           if (strcmp(token, requires[i]) == 0) {
             requireAdded[i] = 'Y';
@@ -598,6 +623,8 @@ int loadFile(char *filename) {
       }
     } else if (*line == '}') {
       inProc = 0;
+      procContent = 0;
+      procSymIdx = -1;
       offset = 0;
       if (libScan != 0) loadModule = 0;
     }

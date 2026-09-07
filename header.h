@@ -55,6 +55,8 @@ LINK byte *lows;
 LINK char *types;
 LINK int numReferences;
 LINK int inProc;
+LINK int procContent;   /* has the current proc emitted any bytes yet? */
+LINK int procSymIdx;    /* index of the current proc's own name in symbols[] */
 LINK word offset;
 LINK char addressMode;
 LINK char **libraries;
