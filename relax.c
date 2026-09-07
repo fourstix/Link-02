@@ -78,6 +78,14 @@ typedef struct {
 
 typedef struct {
   char name[128];
+  /* A ".align" seen at the head of the proc. Relaxation regenerates a
+   * proc's text from scratch, so anything not explicitly carried here
+   * is silently dropped -- which is exactly what used to happen to
+   * ".align", leaving in-proc alignment working without -r and quietly
+   * broken with it. Only the head position is meaningful: Link/02
+   * rejects ".align" once a proc has emitted content, because there it
+   * moves the proc's base rather than the current position. */
+  char alignSpec[32];
   word size;
   byte bytes[RLX_MAX_PROC_BYTES];
   byte defined[RLX_MAX_PROC_BYTES];
@@ -342,6 +350,7 @@ static int rlxParseFile(char *filename, RlxFileData *fd, int isLibrary) {
       seg->proc = (RlxProc *)malloc(sizeof(RlxProc));
       proc = seg->proc;
       strcpy(proc->name, token);
+      proc->alignSpec[0] = 0;
       proc->numFixups = 0;
       memset(proc->defined, 0, sizeof(proc->defined));
       curpos = 0;
@@ -385,6 +394,18 @@ static int rlxParseFile(char *filename, RlxFileData *fd, int isLibrary) {
           curpos++;
         }
       }
+    } else if (inProc && strncmp(line, ".align ", 7) == 0) {
+      /* Capture rather than pass through. A passthrough segment would be
+       * written OUTSIDE the regenerated {...} block and so adjust the
+       * global address instead of the proc's base -- which is how this
+       * used to fail: aligned correctly without -r, silently unaligned
+       * with it. rlxEmitProc re-emits this right after "{name". */
+      char *a = line + 7;
+      int n = 0;
+      while (*a == ' ') a++;
+      while (*a > ' ' && n < (int)sizeof(proc->alignSpec) - 1)
+        proc->alignSpec[n++] = *a++;
+      proc->alignSpec[n] = 0;
     } else if (inProc && *line == '>') {
       line++;
       line = getHex(line, &value);
@@ -739,6 +760,8 @@ static void rlxEmitProc(FILE *out, char *origFile, RlxProc *orig,
   }
 
   fprintf(out, "{%s\n", orig->name);
+  /* Must come before any content: see RlxProc.alignSpec. */
+  if (orig->alignSpec[0]) fprintf(out, ".align %s\n", orig->alignSpec);
 
   /* Emit byte content as contiguous runs, defined vs. gap. */
   p = 0;
